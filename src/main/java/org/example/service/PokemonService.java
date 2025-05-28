@@ -6,6 +6,7 @@ import org.example.model.Pokemon;
 import org.example.repository.AccessLogRepository;
 import org.example.repository.PokemonRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -15,6 +16,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PokemonService {
 
     private final RestTemplate restTemplate;
@@ -22,10 +24,15 @@ public class PokemonService {
     private final AccessLogRepository accessLogRepository;
 
     public Pokemon getPokemonById(Long id, String ipAddress) {
+        log.info("Obteniendo Pokémon con ID: {} desde IP: {}", id, ipAddress);
+
         String url = "https://pokeapi.co/api/v2/pokemon/" + id;
         PokemonApiResponse response = restTemplate.getForObject(url, PokemonApiResponse.class);
 
-        if (response == null) throw new RuntimeException("No se encontró el Pokémon");
+        if (response == null) {
+            log.error("No se encontró el Pokémon con ID: {}", id);
+            throw new RuntimeException("No se encontró el Pokémon");
+        }
 
         Pokemon pokemon = pokemonRepository.findById(id).orElse(
                 Pokemon.builder()
@@ -36,18 +43,22 @@ public class PokemonService {
                         .build()
         );
         pokemonRepository.save(pokemon);
+        log.info("Pokémon guardado: {}", pokemon.getName());
 
-        AccessLog log = AccessLog.builder()
+        AccessLog logEntry = AccessLog.builder()
                 .accessTime(LocalDateTime.now())
                 .ipAddress(ipAddress)
                 .pokemon(pokemon)
                 .build();
-        accessLogRepository.save(log);
+        accessLogRepository.save(logEntry);
+        log.info("Log de acceso guardado para Pokémon {}", pokemon.getName());
 
         return pokemon;
     }
 
     public List<String> getEvolutionChainById(Long id) {
+        log.info("Obteniendo cadena de evolución para Pokémon con ID: {}", id);
+
         String speciesUrl = "https://pokeapi.co/api/v2/pokemon-species/" + id;
         SpeciesResponse species = restTemplate.getForObject(speciesUrl, SpeciesResponse.class);
         String evoUrl = species.getEvolution_chain().getUrl();
@@ -62,7 +73,9 @@ public class PokemonService {
             current = current.getEvolves_to().get(0);
         }
 
+        log.info("Cadena de evolución obtenida: {}", evolutionNames);
         return evolutionNames;
     }
 }
+
 
