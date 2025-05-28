@@ -4,29 +4,54 @@ import axios from 'axios';
 const PokemonViewer = () => {
   const [pokemonId, setPokemonId] = useState('');
   const [pokemon, setPokemon] = useState(null);
-  const [evolution, setEvolution] = useState([]);
+  const [evolutionData, setEvolutionData] = useState([]);
   const [error, setError] = useState('');
+
+  const getAuthHeaders = () => {
+    const username = 'admin';
+    const password = 'admin123';
+    const token = btoa(`${username}:${password}`);
+    return {
+      'X-Forwarded-For': '127.0.0.1',
+      'Authorization': `Basic ${token}`
+    };
+  };
 
   const fetchPokemon = async () => {
     try {
       const pokeRes = await axios.get(`http://localhost:8080/api/pokemon/${pokemonId}`, {
-        headers: { 'X-Forwarded-For': '127.0.0.1' }
+        headers: getAuthHeaders()
       });
 
-      const evoRes = await axios.get(`http://localhost:8080/api/pokemon/${pokemonId}/evolution`);
+      const evoRes = await axios.get(`http://localhost:8080/api/pokemon/${pokemonId}/evolution`, {
+        headers: getAuthHeaders()
+      });
+
+      const evoNames = evoRes.data;
+
+      const evoWithImages = await Promise.all(
+        evoNames.map(async (name) => {
+          const res = await axios.get(`https://pokeapi.co/api/v2/pokemon/${name}`);
+          return {
+            name: name,
+            image: res.data.sprites.front_default,
+          };
+        })
+      );
 
       setPokemon(pokeRes.data);
-      setEvolution(evoRes.data);
+      setEvolutionData(evoWithImages);
       setError('');
     } catch (err) {
+      console.error("Error al obtener el Pokémon:", err);
       setError('No se pudo obtener el Pokémon.');
       setPokemon(null);
-      setEvolution([]);
+      setEvolutionData([]);
     }
   };
 
   return (
-    <div className="min-h-screen bg-zinc-900 text-white flex flex-col items-center justify-start py-10 px-4">
+    <div className="min-h-screen bg-zinc-900 text-white flex flex-col items-center py-10 px-4">
       <h1 className="text-4xl font-bold mb-8">Consulta Pokémon</h1>
 
       <div className="flex items-center gap-4 mb-8">
@@ -45,22 +70,31 @@ const PokemonViewer = () => {
         </button>
       </div>
 
-      {error && <p className="text-red-500">{error}</p>}
+      {error && <p className="text-red-500 mt-4">{error}</p>}
 
       {pokemon && (
         <div className="bg-zinc-800 p-6 rounded-lg shadow-md w-full max-w-md mb-8">
           <h2 className="text-2xl font-bold capitalize mb-4 text-center">{pokemon.name}</h2>
-          <img src={pokemon.imageUrl} alt={pokemon.name} className="mx-auto w-32 h-32 mb-4" />
+          <div className="flex justify-center mb-4">
+            <img
+              src={pokemon.imageUrl}
+              alt={pokemon.name}
+              className="w-32 h-32"
+            />
+          </div>
           <p className="text-center text-sm text-gray-300">Experiencia base: {pokemon.baseExperience}</p>
         </div>
       )}
 
-      {evolution.length > 0 && (
+      {evolutionData.length > 0 && (
         <div className="bg-zinc-800 p-6 rounded-lg shadow-md w-full max-w-md">
-          <h3 className="text-xl font-semibold mb-3 text-center">Cadena de evolución</h3>
-          <ul className="list-disc list-inside space-y-1 text-center">
-            {evolution.map((name, index) => (
-              <li key={index} className="capitalize">{name}</li>
+          <h3 className="text-xl font-semibold mb-4 text-center">Cadena de evolución</h3>
+          <ul className="flex flex-col gap-4 items-center">
+            {evolutionData.map((evo, index) => (
+              <li key={index} className="text-center capitalize">
+                <img src={evo.image} alt={evo.name} className="w-20 h-20 mx-auto mb-1" />
+                {evo.name}
+              </li>
             ))}
           </ul>
         </div>
